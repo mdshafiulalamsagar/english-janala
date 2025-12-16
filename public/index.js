@@ -1,15 +1,12 @@
-// ==============================================
-// 1. AUTHENTICATION LOGIC (Login & Register)
-// ==============================================
-
 // --- Registration Logic ---
 const regBtn = document.getElementById('reg-btn');
 if (regBtn) {
     regBtn.addEventListener('click', async () => {
-        const name = document.getElementById('reg-name').value;
+        // নাম এর বদলে ইমেইল নিচ্ছি
+        const email = document.getElementById('reg-email').value;
         const password = document.getElementById('reg-pass').value;
 
-        if (!name || !password) {
+        if (!email || !password) {
             alert("Please fill all fields!");
             return;
         }
@@ -18,14 +15,14 @@ if (regBtn) {
             const response = await fetch('/api/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, password })
+                body: JSON.stringify({ email, password }) // name এর বদলে email পাঠাচ্ছি
             });
 
             const data = await response.json();
 
             if (response.ok) {
                 alert("Registration Successful! 🎉 Please Login now.");
-                document.getElementById('reg-name').value = "";
+                document.getElementById('reg-email').value = "";
                 document.getElementById('reg-pass').value = "";
             } else {
                 alert("Error: " + data.detail);
@@ -41,11 +38,11 @@ if (regBtn) {
 const loginBtn = document.getElementById('login-btn');
 if (loginBtn) {
     loginBtn.addEventListener('click', async () => {
-        const name = document.getElementById('login-name').value;
+        const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-pass').value;
 
-        if (!name || !password) {
-            alert("Username and Password required!");
+        if (!email || !password) {
+            alert("Email and Password required!");
             return;
         }
 
@@ -53,14 +50,15 @@ if (loginBtn) {
             const response = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, password })
+                body: JSON.stringify({ email, password })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                localStorage.setItem("username", data.username);
-                alert("Login Successful! Welcome " + data.username);
+                // ইমেইল সেভ করছি লোকাল স্টোরেজে
+                localStorage.setItem("user_email", data.email);
+                alert("Login Successful!");
                 window.location.href = "index.html"; 
             } else {
                 alert("Login Failed: " + (data.detail || "Invalid credentials"));
@@ -72,28 +70,34 @@ if (loginBtn) {
     });
 }
 
-// --- Navbar & Hero Button Logic (Design Updated) ---
+// --- Navbar & Hero Button Logic ---
 const checkLoginStatus = () => {
-    const username = localStorage.getItem("username");
+    // এখন আমরা user_email চেক করব
+    const userEmail = localStorage.getItem("user_email");
     const navUserArea = document.getElementById('nav-user-area');
     const heroBtn = document.getElementById('hero-btn');
 
-    if (username) {
-        // ১. উপরের মেনুতে নাম দেখানো (ডিজাইন ফিক্স: সিম্পল লুক)
+    if (userEmail) {
+        // ১. উপরের মেনুতে ইমেইল দেখানো
         if (navUserArea) {
+            // ইমেইল অনেক বড় হতে পারে, তাই @ এর আগেরটুকু দেখাতে পারি বা পুরোটা
+            // সুন্দর দেখানোর জন্য শুধু @ এর আগের অংশ নিচ্ছি (যেমন: sagar123)
+            const displayName = userEmail.split('@')[0]; 
+            
             navUserArea.innerHTML = `
                 <div class="dropdown dropdown-end">
                     <div tabindex="0" role="button" class="btn btn-ghost text-base font-normal">
-                        <i class="fa-solid fa-user"></i> ${username}
+                        <i class="fa-solid fa-user"></i> ${displayName}
                     </div>
                     <ul tabindex="0" class="menu dropdown-content bg-base-100 rounded-box z-1 mt-4 w-52 p-2 shadow">
+                        <li class="px-4 py-2 text-xs text-gray-400 border-b">${userEmail}</li>
                         <li><a onclick="logoutUser()" class="text-error"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</a></li>
                     </ul>
                 </div>
             `;
         }
 
-        // ২. হিরো বাটন চেঞ্জ করে "Start Learning" বানানো
+        // ২. হিরো বাটন আপডেট
         if (heroBtn) {
             heroBtn.innerHTML = 'Start Learning <i class="fa-solid fa-book-open ml-2"></i>';
             heroBtn.href = '#level-container';
@@ -105,11 +109,11 @@ const checkLoginStatus = () => {
 
 // Logout Function
 const logoutUser = () => {
-    localStorage.removeItem("username");
+    localStorage.removeItem("user_email"); // ইমেইল রিমুভ করছি
     window.location.reload();
 }
 
-// Run check immediately
+// Run check
 checkLoginStatus();
 
 
@@ -117,7 +121,6 @@ checkLoginStatus();
 // 2. LEARNING LOGIC (Lessons & Vocabularies)
 // ==============================================
 
-// Only run these functions if we are on the home page
 if (document.getElementById("level-container")) {
 
     const loadLessons = () => {
@@ -132,20 +135,18 @@ if (document.getElementById("level-container")) {
         lessonButtons.forEach((btn) => btn.classList.remove("active"))
     }
 
-    // --- PROTECTED FUNCTION (Check Login before showing words) ---
+    // --- PROTECTED ROUTE (Updated for Email) ---
     window.loadLevelWord = (id) => {
-        // ১. পুলিশ চেক: লগইন আছে তো?
-        const username = localStorage.getItem("username");
+        const userEmail = localStorage.getItem("user_email");
         
-        if (!username) {
-            const confirmLogin = confirm("এই লেসনটি দেখতে হলে আপনাকে লগইন করতে হবে। আপনি কি লগইন পেজে যেতে চান?");
+        if (!userEmail) {
+            const confirmLogin = confirm("এই লেসনটি দেখতে হলে আপনাকে লগইন করতে হবে।");
             if (confirmLogin) {
                 window.location.href = "login.html";
             }
-            return; // এখানেই কাজ শেষ
+            return;
         }
 
-        // ২. লগইন থাকলে ডাটা লোড হবে
         const url = `https://openapi.programming-hero.com/api/level/${id}`
         fetch(url)
             .then(res => res.json())
@@ -214,6 +215,5 @@ if (document.getElementById("level-container")) {
         }
     }
 
-    // Start App
     loadLessons();
 }
