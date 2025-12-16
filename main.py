@@ -6,57 +6,68 @@ from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
 
-# ১. এনভায়রনমেন্ট ভেরিয়েবল লোড করা (পাসওয়ার্ড লুকানোর জন্য)
 load_dotenv()
 
 app = FastAPI()
 
-# ২. ডাটাবেস কানেকশন (MongoDB)
-# .env ফাইল থেকে লিঙ্কটা নিয়ে আসবে
+# --- ১. ফোল্ডারের লোকেশন ফিক্স (Vercel Fix) ---
+# আমরা এখন বলে দিচ্ছি ফাইলটা ঠিক কোথায় আছে
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PUBLIC_DIR = os.path.join(BASE_DIR, "public")
+ASSETS_DIR = os.path.join(PUBLIC_DIR, "assets")
+
+# --- ২. ডাটাবেস কানেকশন ---
 MONGO_URI = os.getenv("MONGO_URI")
 
 try:
+    # কানেকশন এরর হলেও অ্যাপ ক্র্যাশ করবে না, শুধু প্রিন্ট করবে
     client = MongoClient(MONGO_URI)
-    db = client["english_janala_db"]  # ডাটাবেসের নাম
-    users_collection = db["users"]    # টেবিলের নাম (User দের রাখার জন্য)
+    db = client["english_janala_db"]
+    users_collection = db["users"]
     print("✅ MongoDB Connected Successfully!")
 except Exception as e:
     print(f"❌ Database Connection Failed: {e}")
+    users_collection = None
 
-# ৩. ডাটা মডেল (ইউজারের কি কি তথ্য আমরা নেব)
+# --- ৩. ডাটা মডেল ---
 class User(BaseModel):
     name: str
     password: str
 
-# ৪. রেজিস্ট্রেশন API (নতুন ইউজার জমানোর জন্য)
+# --- ৪. API রাউটস ---
 @app.post("/api/register")
 def register_user(user: User):
-    # আগে চেক করি এই নামে কেউ আছে কি না
+    if users_collection is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+        
     existing_user = users_collection.find_one({"name": user.name})
     if existing_user:
         raise HTTPException(status_code=400, detail="User already exists")
     
-    # না থাকলে সেভ করি
     users_collection.insert_one({"name": user.name, "password": user.password})
     return {"message": "User registered successfully"}
 
-# ৫. লগইন API (ইউজার চেক করার জন্য)
 @app.post("/api/login")
 def login_user(user: User):
-    # নাম আর পাসওয়ার্ড মিলিয়ে দেখা
+    if users_collection is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
     found_user = users_collection.find_one({"name": user.name, "password": user.password})
     
     if found_user:
         return {"message": "Login Successful", "username": found_user["name"]}
     else:
-        raise HTTPException(status_code=400, detail="Bhul password ba username")
+        raise HTTPException(status_code=400, detail="Invalid Credentials")
 
-# ৬. ফ্রন্টেন্ড কানেক্ট করা (Static Files)
-# তোমার public ফোল্ডারটা আমরা মাউন্ট করছি
-app.mount("/assets", StaticFiles(directory="public/assets"), name="assets")
-app.mount("/", StaticFiles(directory="public", html=True), name="public")
+# --- ৫. ফ্রন্টেন্ড মাউন্ট (Updated Path) ---
+# এখন আর ক্র্যাশ করবে না কারণ আমরা os.path ব্যবহার করেছি
+if os.path.exists(ASSETS_DIR):
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
-# ৭. হোম পেজ রুট (সরাসরি index.html দেখাবে)
+if os.path.exists(PUBLIC_DIR):
+    app.mount("/", StaticFiles(directory=PUBLIC_DIR, html=True), name="public")
+
+# রুট ইউআরএল হ্যান্ডলার
 @app.get("/")
 async def read_index():
-    return FileResponse('public/index.html')
+    return FileResponse(os.path.join(PUBLIC_DIR, 'index.html'))
